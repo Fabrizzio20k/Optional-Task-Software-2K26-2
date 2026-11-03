@@ -1,0 +1,35 @@
+# Recorrido inicial (estado ANTES de refactorizar)
+Fecha: 2026-11-03T02:42:50+00:00
+Python: Python 3.13.16  |  uv 0.13.4 (x86_64-unknown-linux-gnu)
+
+$ curl -s -X POST http://127.0.0.1:8000/customers -H Content-Type:application/json -d '{"name":"Ana Torres","email":"ana@example.com","category":"premium"}'
+{"id":1,"name":"Ana Torres","email":"ana@example.com","category":"premium"}
+
+$ curl -s -X POST http://127.0.0.1:8000/products -H Content-Type:application/json -d '{"name":"Libro de algoritmos","price_cents":2500,"stock":5}'
+{"id":1,"name":"Libro de algoritmos","price_cents":2500,"stock":5}
+
+$ curl -s -X POST http://127.0.0.1:8000/orders/quote -H Content-Type:application/json -d '{"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","items":[{"product_id":1,"quantity":2}]}'
+{"subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500}
+
+$ curl -s -X POST http://127.0.0.1:8000/orders -H Content-Type:application/json -d '{"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","items":[{"product_id":1,"quantity":2}]}'
+{"id":1,"customer_id":1,"status":"pending","customer_category":"premium","address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500,"items":[{"product_id":1,"quantity":2,"unit_price_cents":2500}]}
+
+$ curl -s -X POST http://127.0.0.1:8000/orders/1/confirm
+{"id":1,"status":"confirmed","message":"Pedido 1 confirmado. Total: 5500 centavos."}
+
+$ curl -s http://127.0.0.1:8000/products/1
+{"id":1,"name":"Libro de algoritmos","price_cents":2500,"stock":3}
+
+$ curl -s http://127.0.0.1:8000/orders/1/notifications
+[{"id":1,"order_id":1,"recipient":"ana@example.com","message":"Pedido 1 confirmado. Total: 5500 centavos."}]
+
+$ curl -s -o /dev/null -w 'HTTP %{http_code}' -X POST http://127.0.0.1:8000/orders/1/confirm
+HTTP 409
+
+$ curl -s -w '  HTTP %{http_code}' -X POST http://127.0.0.1:8000/orders/1/confirm
+{"detail":"El pedido ya no está pendiente"}  HTTP 409
+
+$ curl -s http://127.0.0.1:8000/products/1
+{"id":1,"name":"Libro de algoritmos","price_cents":2500,"stock":3}
+
+Swagger /docs -> HTTP 200
