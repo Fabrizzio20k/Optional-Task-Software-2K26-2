@@ -1,0 +1,29 @@
+# Preparación
+(cliente 1 y producto 1 creados)
+
+# 1) Primera vez con la clave pedido-123  -> 201, crea el pedido
+$ curl -X POST localhost:8000/orders -H Content-Type: application/json -H Idempotency-Key: pedido-123 -d {"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","items":[{"product_id":1,"quantity":2}]}
+HTTP/1.1 201 Created
+{"id":1,"customer_id":1,"status":"pending","customer_category":"premium","address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500,"items":[{"product_id":1,"quantity":2,"unit_price_cents":2500}]}
+
+# 2) Reintento: misma clave y mismo contenido -> 201, MISMO pedido, Idempotent-Replayed: true
+$ curl -X POST localhost:8000/orders -H Content-Type: application/json -H Idempotency-Key: pedido-123 -d {"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","items":[{"product_id":1,"quantity":2}]}
+HTTP/1.1 201 Created
+idempotent-replayed: true
+{"id":1,"customer_id":1,"status":"pending","customer_category":"premium","address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500,"items":[{"product_id":1,"quantity":2,"unit_price_cents":2500}]}
+
+# 3) Misma clave con contenido distinto -> 409
+$ curl -X POST localhost:8000/orders -H Content-Type: application/json -H Idempotency-Key: pedido-123 -d {"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"express","items":[{"product_id":1,"quantity":2}]}
+HTTP/1.1 409 Conflict
+{"detail":"La clave de idempotencia ya se usó con otro contenido"}
+
+# 4) Solo existe un pedido
+$ curl localhost:8000/orders
+HTTP/1.1 200 OK
+[{"id":1,"customer_id":1,"status":"pending","customer_category":"premium","address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500}]
+
+# 5) Sin cabecera: comportamiento original (crea otro)
+$ curl -X POST localhost:8000/orders -H Content-Type: application/json -d {"customer_id":1,"address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","items":[{"product_id":1,"quantity":2}]}
+HTTP/1.1 201 Created
+{"id":2,"customer_id":1,"status":"pending","customer_category":"premium","address":"Av. Primavera 100","city":"Lima","postal_code":"15001","shipping":"standard","subtotal_cents":5000,"discount_cents":500,"shipping_cents":1000,"total_cents":5500,"items":[{"product_id":1,"quantity":2,"unit_price_cents":2500}]}
+

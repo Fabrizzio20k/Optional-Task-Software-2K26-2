@@ -66,4 +66,10 @@ class Database:
                     recipient TEXT NOT NULL,
                     message TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS idempotency_keys (
+                    key TEXT PRIMARY KEY,
+                    request_hash TEXT NOT NULL,
+                    order_id INTEGER NOT NULL,
+                    response_json TEXT NOT NULL
+                );
             """)

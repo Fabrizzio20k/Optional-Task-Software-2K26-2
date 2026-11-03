@@ -1,0 +1,86 @@
+---
+title: Diagrama de clases — estado final (refactorizado)
+---
+classDiagram
+    direction LR
+    class BaseModel {
+        <<pydantic>>
+    }
+    class HTTPException {
+        <<fastapi>>
+    }
+    class Database {
+        +path: str
+        +connect() contextmanager~Connection~
+        +initialize() None
+    }
+    class ProductInput {
+        +name: str
+        +price_cents: int
+        +stock: int
+    }
+    class CustomerInput {
+        +name: str
+        +email: EmailStr
+        +category: "regular" | "premium" | "business"
+    }
+    class ItemInput {
+        +product_id: int
+        +quantity: int
+    }
+    class OrderInput {
+        +customer_id: int
+        +address: str
+        +city: str
+        +postal_code: str
+        +shipping: "pickup" | "standard" | "express"
+        +items: list~ItemInput~
+        +unique_products() OrderInput
+    }
+    class OrderTotals {
+        <<dataclass frozen>>
+        +subtotal_cents: int
+        +discount_cents: int
+        +shipping_cents: int
+        +total_cents: int
+        +as_dict() dict
+    }
+    class PricedOrder {
+        <<dataclass frozen>>
+        +customer_category: str
+        +lines: list~tuple~
+        +totals: OrderTotals
+    }
+    class OrderService {
+        +database: Database
+        +quote(data: OrderInput) dict
+        +create(data: OrderInput) dict
+        +replace(order_id, data: OrderInput) dict
+        +get(order_id) dict
+        +list() list~dict~
+        +confirm(order_id) dict
+        +cancel(order_id) dict
+        +delete(order_id) None
+        +notifications(order_id) list~dict~
+        -_require_order(connection, order_id)$ Row
+        -_require_pending(order, message)$ Row
+        -_price(connection, data)$ PricedOrder
+        -_order_values(data, priced)$ tuple
+        -_insert_lines(connection, order_id, lines)$ None
+        -_detail(connection, order_id)$ dict
+        -_deduct_stock(connection, order_id)$ None
+        -_notify_confirmation(connection, order)$ str
+        -_set_status(connection, order_id, status)$ None
+    }
+    BaseModel <|-- ProductInput
+    BaseModel <|-- CustomerInput
+    BaseModel <|-- ItemInput
+    BaseModel <|-- OrderInput
+    OrderInput "1" *-- "1..100" ItemInput : items
+    PricedOrder "1" *-- "1" OrderTotals : totals
+    OrderService --> Database : database
+    OrderService ..> OrderInput : recibe
+    OrderService ..> PricedOrder : crea en _price()
+    OrderService ..> OrderTotals : vía calculate_totals()
+    OrderService ..> HTTPException : lanza
+    note for OrderTotals "Creado por calculate_totals() del módulo<br>app/order_pricing.py (funciones puras,<br>constantes DISCOUNT_PERCENT_BY_CATEGORY,<br>SHIPPING_COST_CENTS, FREE_STANDARD_SHIPPING_FROM_CENTS)."
