@@ -1,0 +1,60 @@
+---
+title: Diagrama de clases — estado inicial (tag antes-refactor)
+---
+classDiagram
+    direction LR
+    class BaseModel {
+        <<pydantic>>
+    }
+    class HTTPException {
+        <<fastapi>>
+    }
+    class Database {
+        +path: str
+        +connect() contextmanager~Connection~
+        +initialize() None
+    }
+    class ProductInput {
+        +name: str
+        +price_cents: int
+        +stock: int
+    }
+    class CustomerInput {
+        +name: str
+        +email: EmailStr
+        +category: "regular" | "premium" | "business"
+    }
+    class ItemInput {
+        +product_id: int
+        +quantity: int
+    }
+    class OrderInput {
+        +customer_id: int
+        +address: str
+        +city: str
+        +postal_code: str
+        +shipping: "pickup" | "standard" | "express"
+        +items: list~ItemInput~
+        +unique_products() OrderInput
+    }
+    class OrderService {
+        +database: Database
+        +save(customer_id, address, city, postal_code, shipping, items, order_id=None) dict
+        +quote(data: OrderInput) dict
+        +get(order_id) dict
+        +list() list~dict~
+        +confirm(order_id) dict
+        +cancel(order_id) dict
+        +delete(order_id) None
+        +notifications(order_id) list~dict~
+    }
+    BaseModel <|-- ProductInput
+    BaseModel <|-- CustomerInput
+    BaseModel <|-- ItemInput
+    BaseModel <|-- OrderInput
+    OrderInput "1" *-- "1..100" ItemInput : items
+    OrderService --> Database : database
+    OrderService ..> OrderInput : quote()
+    OrderService ..> ItemInput : save(items)
+    OrderService ..> HTTPException : lanza
+    note for OrderService "save() y quote() repiten el cálculo de<br>descuento y envío (if/elif con 10, 15,<br>10_000, 1_000, 2_500).<br>save() crea o actualiza según order_id."

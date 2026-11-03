@@ -66,4 +66,34 @@ class Database:
                     recipient TEXT NOT NULL,
                     message TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS notification_queue (
+                    id INTEGER PRIMARY KEY,
+                    order_id INTEGER NOT NULL,
+                    recipient TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'done', 'dead')),
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    next_attempt_at REAL NOT NULL,
+                    locked_at REAL,
+                    last_error TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_queue_due ON notification_queue(status, next_attempt_at);
+                CREATE TABLE IF NOT EXISTS notification_dlq (
+                    id INTEGER PRIMARY KEY,
+                    message_id INTEGER NOT NULL REFERENCES notification_queue(id),
+                    order_id INTEGER NOT NULL,
+                    recipient TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    attempts INTEGER NOT NULL,
+                    last_error TEXT NOT NULL,
+                    failed_at REAL NOT NULL
+                );
             """)
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(notifications)")}
+            if "message_id" not in columns:  # migración para bases creadas antes de la cola
+                connection.execute("ALTER TABLE notifications ADD COLUMN message_id INTEGER")
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_message ON notifications(message_id)"
+            )

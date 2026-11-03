@@ -1,0 +1,79 @@
+# Escenario: cliente 1 ana@ (entrega OK), cliente 2 luis+temporal2@ (falla 2 veces), cliente 3 eva+siempre@ (siempre falla)
+# NOTIFY_MAX_ATTEMPTS=3, espera exponencial 1 s, 2 s. Worker en segundo plano apagado para mostrar cada ronda.
+
+# 1) Confirmar: la notificación queda PENDIENTE en la cola, todavía no se entrega
+$ curl -X POST localhost:8000/orders/1/confirm
+HTTP/1.1 200 OK
+{"id":1,"status":"confirmed","message":"Pedido 1 confirmado. Total: 3500 centavos."}
+
+$ curl -X POST localhost:8000/orders/2/confirm
+HTTP/1.1 200 OK
+{"id":2,"status":"confirmed","message":"Pedido 2 confirmado. Total: 3500 centavos."}
+
+$ curl -X POST localhost:8000/orders/3/confirm
+HTTP/1.1 200 OK
+{"id":3,"status":"confirmed","message":"Pedido 3 confirmado. Total: 3500 centavos."}
+
+$ curl localhost:8000/orders/1/notifications
+HTTP/1.1 200 OK
+[]
+
+$ curl localhost:8000/notifications/queue
+  msg 1 ana@example.com              status=pending    attempts=0 last_error=None
+  msg 2 luis+temporal2@example.com   status=pending    attempts=0 last_error=None
+  msg 3 eva+siempre@example.com      status=pending    attempts=0 last_error=None
+
+# 2) Ronda 1 del worker
+$ curl -X POST localhost:8000/notifications/process
+HTTP/1.1 200 OK
+{"processed":3}
+
+$ curl localhost:8000/notifications/queue
+  msg 1 ana@example.com              status=done       attempts=1 last_error=None
+  msg 2 luis+temporal2@example.com   status=pending    attempts=1 last_error=Timeout del servicio de correo, intento 1 (simulado)
+  msg 3 eva+siempre@example.com      status=pending    attempts=1 last_error=Servicio de correo no disponible (simulado)
+
+# 3) Ronda 2 (tras esperar 1 s)
+$ curl -X POST localhost:8000/notifications/process
+HTTP/1.1 200 OK
+{"processed":2}
+
+$ curl localhost:8000/notifications/queue
+  msg 1 ana@example.com              status=done       attempts=1 last_error=None
+  msg 2 luis+temporal2@example.com   status=pending    attempts=2 last_error=Timeout del servicio de correo, intento 2 (simulado)
+  msg 3 eva+siempre@example.com      status=pending    attempts=2 last_error=Servicio de correo no disponible (simulado)
+
+# 4) Ronda 3 (tras esperar 2 s): luis se entrega, eva agota intentos y pasa a la DLQ
+$ curl -X POST localhost:8000/notifications/process
+HTTP/1.1 200 OK
+{"processed":2}
+
+$ curl localhost:8000/notifications/queue
+  msg 1 ana@example.com              status=done       attempts=1 last_error=None
+  msg 2 luis+temporal2@example.com   status=done       attempts=3 last_error=None
+  msg 3 eva+siempre@example.com      status=dead       attempts=3 last_error=intentos agotados: Servicio de correo no disponible (simulado)
+
+# 5) DLQ con contenido, intentos y causa del último error
+$ curl localhost:8000/notifications/dlq
+HTTP/1.1 200 OK
+[{"id":1,"message_id":3,"order_id":3,"recipient":"eva+siempre@example.com","message":"Pedido 3 confirmado. Total: 3500 centavos.","attempts":3,"last_error":"intentos agotados: Servicio de correo no disponible (simulado)","failed_at":1793675325.6258612}]
+
+# 6) Notificaciones entregadas (una por pedido, sin duplicados)
+$ curl localhost:8000/orders/1/notifications
+HTTP/1.1 200 OK
+[{"id":1,"order_id":1,"recipient":"ana@example.com","message":"Pedido 1 confirmado. Total: 3500 centavos.","message_id":1}]
+
+$ curl localhost:8000/orders/2/notifications
+HTTP/1.1 200 OK
+[{"id":2,"order_id":2,"recipient":"luis+temporal2@example.com","message":"Pedido 2 confirmado. Total: 3500 centavos.","message_id":2}]
+
+# 7) Reprocesamiento explícito desde la DLQ
+$ curl -X POST localhost:8000/notifications/dlq/1/reprocess
+HTTP/1.1 200 OK
+{"message_id":3,"status":"pending"}
+
+$ curl localhost:8000/notifications/queue
+  msg 1 ana@example.com              status=done       attempts=1 last_error=None
+  msg 2 luis+temporal2@example.com   status=done       attempts=3 last_error=None
+  msg 3 eva+siempre@example.com      status=pending    attempts=0 last_error=None
+

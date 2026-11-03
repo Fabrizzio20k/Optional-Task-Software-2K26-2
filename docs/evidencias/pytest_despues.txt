@@ -1,0 +1,19 @@
+$ uv run pytest --cov --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=80
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.13.16-final-0 _______________
+
+Name                   Stmts   Miss  Cover   Missing
+----------------------------------------------------
+app/__init__.py            0      0   100%
+app/customers.py          49      0   100%
+app/database.py           23      0   100%
+app/order_pricing.py      22      0   100%
+app/orders.py            163      0   100%
+app/products.py           42      0   100%
+main.py                   26      1    96%   38
+----------------------------------------------------
+TOTAL                    325      1    99%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+Required test coverage of 80% reached. Total coverage: 99.69%
+============================= 98 passed in 10.10s ==============================
